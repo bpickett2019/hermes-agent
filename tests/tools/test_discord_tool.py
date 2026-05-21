@@ -502,6 +502,117 @@ class TestRoleManagement:
         assert result["success"] is True
 
 
+# --------------------------------------------------------------------------
+# Actions: create_category / create_channel
+# --------------------------------------------------------------------------
+
+class TestCreateCategory:
+    @patch("tools.discord_tool._discord_request")
+    def test_create_category(self, mock_req, monkeypatch):
+        monkeypatch.setenv("DISCORD_BOT_TOKEN", "test-token")
+        mock_req.return_value = {"id": "900", "name": "Agents", "type": 4}
+        result = json.loads(discord_admin_handler(
+            action="create_category", guild_id="111", name="Agents",
+        ))
+        assert result["success"] is True
+        assert result["channel_id"] == "900"
+        assert result["name"] == "Agents"
+        assert result["type"] == "category"
+        mock_req.assert_called_once_with(
+            "POST", "/guilds/111/channels", "test-token",
+            body={"type": 4, "name": "Agents"},
+        )
+
+    @patch("tools.discord_tool._discord_request")
+    def test_create_category_ignores_parent(self, mock_req, monkeypatch):
+        monkeypatch.setenv("DISCORD_BOT_TOKEN", "test-token")
+        mock_req.return_value = {"id": "901", "name": "Agents", "type": 4}
+        result = json.loads(discord_admin_handler(
+            action="create_category", guild_id="111", name="Agents", parent_id="900",
+        ))
+        assert result["success"] is True
+        mock_req.assert_called_once_with(
+            "POST", "/guilds/111/channels", "test-token",
+            body={"type": 4, "name": "Agents"},
+        )
+
+    @patch("tools.discord_tool._discord_request")
+    def test_create_category_missing_guild_id(self, mock_req, monkeypatch):
+        monkeypatch.setenv("DISCORD_BOT_TOKEN", "test-token")
+        result = json.loads(discord_admin_handler(action="create_category", name="Test"))
+        assert "error" in result
+        assert "guild_id" in result["error"]
+
+    @patch("tools.discord_tool._discord_request")
+    def test_create_category_missing_name(self, mock_req, monkeypatch):
+        monkeypatch.setenv("DISCORD_BOT_TOKEN", "test-token")
+        result = json.loads(discord_admin_handler(action="create_category", guild_id="111"))
+        assert "error" in result
+        assert "name" in result["error"]
+
+
+class TestCreateChannel:
+    @patch("tools.discord_tool._discord_request")
+    def test_create_channel(self, mock_req, monkeypatch):
+        monkeypatch.setenv("DISCORD_BOT_TOKEN", "test-token")
+        mock_req.return_value = {"id": "800", "name": "agent-1 inbox", "type": 0}
+        result = json.loads(discord_admin_handler(
+            action="create_channel", guild_id="111", name="agent-1 inbox",
+        ))
+        assert result["success"] is True
+        assert result["channel_id"] == "800"
+        assert result["name"] == "agent-1 inbox"
+        assert result["type"] == "text"
+        mock_req.assert_called_once_with(
+            "POST", "/guilds/111/channels", "test-token",
+            body={"type": 0, "name": "agent-1 inbox"},
+        )
+
+    @patch("tools.discord_tool._discord_request")
+    def test_create_channel_with_parent_and_topic(self, mock_req, monkeypatch):
+        monkeypatch.setenv("DISCORD_BOT_TOKEN", "test-token")
+        mock_req.return_value = {"id": "801", "name": "work-queue", "type": 0}
+        result = json.loads(discord_admin_handler(
+            action="create_channel", guild_id="111", name="work-queue",
+            parent_id="900", topic="Incoming tasks for agent 1",
+        ))
+        assert result["success"] is True
+        mock_req.assert_called_once_with(
+            "POST", "/guilds/111/channels", "test-token",
+            body={
+                "type": 0,
+                "name": "work-queue",
+                "parent_id": "900",
+                "topic": "Incoming tasks for agent 1",
+            },
+        )
+
+    @patch("tools.discord_tool._discord_request")
+    def test_create_channel_missing_guild_id(self, mock_req, monkeypatch):
+        monkeypatch.setenv("DISCORD_BOT_TOKEN", "test-token")
+        result = json.loads(discord_admin_handler(action="create_channel", name="test"))
+        assert "error" in result
+        assert "guild_id" in result["error"]
+
+    @patch("tools.discord_tool._discord_request")
+    def test_create_channel_missing_name(self, mock_req, monkeypatch):
+        monkeypatch.setenv("DISCORD_BOT_TOKEN", "test-token")
+        result = json.loads(discord_admin_handler(action="create_channel", guild_id="111"))
+        assert "error" in result
+        assert "name" in result["error"]
+
+    @patch("tools.discord_tool._discord_request")
+    def test_create_channel_403_error(self, mock_req, monkeypatch):
+        monkeypatch.setenv("DISCORD_BOT_TOKEN", "test-token")
+        mock_req.side_effect = DiscordAPIError(403, '{"message": "Missing Access"}')
+        result = json.loads(discord_admin_handler(
+            action="create_channel", guild_id="111", name="test",
+        ))
+        assert "error" in result
+        assert "403" in result["error"]
+        assert "MANAGE_CHANNELS" in result["error"]
+
+
 # ---------------------------------------------------------------------------
 # Error handling
 # ---------------------------------------------------------------------------

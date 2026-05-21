@@ -79,6 +79,15 @@ const sidebars: SidebarsConfig = {
         },
         {
           type: 'category',
+          label: 'Knowledge & RAG',
+          items: [
+            'user-guide/skills/bundled/note-taking/note-taking-obsidian',
+            'user-guide/skills/optional/research/research-qmd',
+            'user-guide/skills/optional/mlops/mlops-chroma',
+          ],
+        },
+        {
+          type: 'category',
           label: 'Media & Web',
           items: [
             'user-guide/features/voice-mode',

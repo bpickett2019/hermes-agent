@@ -947,6 +947,21 @@ class TestDelegationCredentialResolution(unittest.TestCase):
         creds = _resolve_delegation_credentials(cfg, parent)
         self.assertEqual(creds["api_mode"], "anthropic_messages")
 
+    def test_minimax_anthropic_endpoint_uses_anthropic_messages(self):
+        parent = _make_mock_parent(depth=0)
+        cfg = {
+            "model": "MiniMax-M2.7",
+            "provider": "minimax",
+            "base_url": "https://api.minimax.io/anthropic",
+            "api_key": "minimax-key",
+        }
+        creds = _resolve_delegation_credentials(cfg, parent)
+        self.assertEqual(creds["model"], "MiniMax-M2.7")
+        self.assertEqual(creds["provider"], "minimax")
+        self.assertEqual(creds["base_url"], "https://api.minimax.io/anthropic")
+        self.assertEqual(creds["api_key"], "minimax-key")
+        self.assertEqual(creds["api_mode"], "anthropic_messages")
+
     def test_direct_endpoint_returns_none_api_key_when_not_configured(self):
         # When base_url is set without api_key, api_key should be None so
         # _build_child_agent inherits the parent's key (effective_api_key = override or parent).
@@ -1770,12 +1785,16 @@ class TestDelegateHeartbeat(unittest.TestCase):
 
         child.run_conversation.side_effect = slow_run
 
-        # Patch both the interval AND the idle ceiling so the test proves
-        # the in-tool branch takes effect: with a 0.05s interval and the
-        # default _HEARTBEAT_STALE_CYCLES_IDLE=5, the old behavior would
-        # trip after 0.25s and stop firing. We should see heartbeats
-        # continuing through the full 0.4s run.
-        with patch("tools.delegate_tool._HEARTBEAT_INTERVAL", 0.05):
+        # Patch interval and stale ceilings so the test proves the in-tool
+        # branch takes effect without depending on the production timeout
+        # constants. If current_tool were ignored, the very low idle ceiling
+        # would stop touches after ~2 cycles. The in-tool ceiling should allow
+        # heartbeats to continue through the slow tool run.
+        with (
+            patch("tools.delegate_tool._HEARTBEAT_INTERVAL", 0.05),
+            patch("tools.delegate_tool._HEARTBEAT_STALE_CYCLES_IDLE", 2),
+            patch("tools.delegate_tool._HEARTBEAT_STALE_CYCLES_IN_TOOL", 20),
+        ):
             _run_single_child(
                 task_index=0,
                 goal="Test long-running tool",
@@ -1783,12 +1802,9 @@ class TestDelegateHeartbeat(unittest.TestCase):
                 parent_agent=parent,
             )
 
-        # With the old idle threshold (5 cycles = 0.25s), touch_calls
-        # would cap at ~5. With the in-tool threshold (20 cycles = 1.0s),
-        # we should see substantially more heartbeats over 0.4s.
         self.assertGreater(
-            len(touch_calls), 6,
-            f"Heartbeat stopped too early while child was inside a tool; "
+            len(touch_calls), 2,
+            f"Heartbeat stopped at the idle stale ceiling while child was inside a tool; "
             f"got {len(touch_calls)} touches over 0.4s at 0.05s interval",
         )
 

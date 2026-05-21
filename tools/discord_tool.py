@@ -424,6 +424,48 @@ def _delete_message(token: str, channel_id: str, message_id: str, **_kwargs: Any
     return json.dumps({"success": True, "message": f"Message {message_id} deleted."})
 
 
+def _create_category(
+    token: str, guild_id: str, name: str,
+    **_kwargs: Any,
+) -> str:
+    """Create a category channel in a guild."""
+    body: Dict[str, Any] = {
+        "type": 4,  # category
+        "name": name,
+    }
+    channel = _discord_request("POST", f"/guilds/{guild_id}/channels", token, body=body)
+    return json.dumps({
+        "success": True,
+        "channel_id": channel["id"],
+        "name": channel.get("name"),
+        "type": _channel_type_name(channel["type"]),
+    })
+
+
+def _create_channel(
+    token: str, guild_id: str, name: str,
+    parent_id: Optional[str] = None,
+    topic: Optional[str] = None,
+    **_kwargs: Any,
+) -> str:
+    """Create a text channel in a guild."""
+    body: Dict[str, Any] = {
+        "type": 0,  # text channel
+        "name": name,
+    }
+    if parent_id:
+        body["parent_id"] = parent_id
+    if topic:
+        body["topic"] = topic
+    channel = _discord_request("POST", f"/guilds/{guild_id}/channels", token, body=body)
+    return json.dumps({
+        "success": True,
+        "channel_id": channel["id"],
+        "name": channel.get("name"),
+        "type": _channel_type_name(channel["type"]),
+    })
+
+
 def _create_thread(
     token: str, channel_id: str, name: str,
     message_id: Optional[str] = None,
@@ -483,6 +525,8 @@ _ACTIONS = {
     "pin_message": _pin_message,
     "unpin_message": _unpin_message,
     "delete_message": _delete_message,
+    "create_category": _create_category,
+    "create_channel": _create_channel,
     "create_thread": _create_thread,
     "add_role": _add_role,
     "remove_role": _remove_role,
@@ -513,6 +557,8 @@ _ACTION_MANIFEST: List[Tuple[str, str, str]] = [
     ("create_thread", "(channel_id, name)", "create a public thread; optional message_id anchor"),
     ("add_role", "(guild_id, user_id, role_id)", "assign a role"),
     ("remove_role", "(guild_id, user_id, role_id)", "remove a role"),
+    ("create_category", "(guild_id, name)", "create a category channel"),
+    ("create_channel", "(guild_id, name)", "create a text channel; optional parent_id, topic"),
 ]
 
 # Actions that require the GUILD_MEMBERS privileged intent.
@@ -534,6 +580,8 @@ _REQUIRED_PARAMS: Dict[str, List[str]] = {
     "create_thread": ["channel_id", "name"],
     "add_role": ["guild_id", "user_id", "role_id"],
     "remove_role": ["guild_id", "user_id", "role_id"],
+    "create_category": ["guild_id", "name"],
+    "create_channel": ["guild_id", "name"],
 }
 
 
@@ -691,7 +739,7 @@ def _build_schema(
         },
         "name": {
             "type": "string",
-            "description": "New thread name (create_thread).",
+            "description": "Channel name (create_thread, create_category, create_channel).",
         },
         "limit": {
             "type": "integer",
@@ -711,6 +759,14 @@ def _build_schema(
             "type": "integer",
             "enum": [60, 1440, 4320, 10080],
             "description": "Thread archive duration in minutes (create_thread, default 1440).",
+        },
+        "parent_id": {
+            "type": "string",
+            "description": "Parent category ID for create_channel.",
+        },
+        "topic": {
+            "type": "string",
+            "description": "Channel topic/description (create_channel).",
         },
     }
 
@@ -782,6 +838,14 @@ _ACTION_403_HINT = {
         "Either the bot lacks MANAGE_ROLES, or the target role sits higher "
         "than the bot's highest role."
     ),
+    "create_category": (
+        "Bot lacks MANAGE_CHANNELS permission in the guild, or the guild "
+        "has reached its maximum channel/category limit."
+    ),
+    "create_channel": (
+        "Bot lacks MANAGE_CHANNELS permission in the guild, "
+        "or the parent category (if specified) is not accessible."
+    ),
     "fetch_messages": (
         "Bot cannot view this channel (missing VIEW_CHANNEL or READ_MESSAGE_HISTORY)."
     ),
@@ -839,6 +903,8 @@ def _run_discord_action(
     before: str = "",
     after: str = "",
     auto_archive_duration: int = 1440,
+    parent_id: str = "",
+    topic: str = "",
 ) -> str:
     """Shared handler logic for both discord tools."""
     token = _get_bot_token()
@@ -872,6 +938,8 @@ def _run_discord_action(
         "message_id": message_id,
         "query": query,
         "name": name,
+        "parent_id": parent_id,
+        "topic": topic,
     }
 
     missing = [p for p in _REQUIRED_PARAMS.get(action, []) if not local_vars.get(p)]
@@ -894,6 +962,8 @@ def _run_discord_action(
             before=before,
             after=after,
             auto_archive_duration=auto_archive_duration,
+            parent_id=parent_id,
+            topic=topic,
         )
     except DiscordAPIError as e:
         logger.warning("Discord API error in %s action '%s': %s", tool_label, action, e)
@@ -923,6 +993,7 @@ _HANDLER_DEFAULTS = {
     "action": "", "guild_id": "", "channel_id": "", "user_id": "",
     "role_id": "", "message_id": "", "query": "", "name": "",
     "limit": 50, "before": "", "after": "", "auto_archive_duration": 1440,
+    "parent_id": "", "topic": "",
 }
 
 

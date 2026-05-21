@@ -2398,6 +2398,12 @@ def _resolve_delegation_credentials(cfg: dict, parent_agent) -> dict:
         elif base_url_hostname(configured_base_url) == "api.anthropic.com":
             provider = "anthropic"
             api_mode = "anthropic_messages"
+        elif base_lower.startswith((
+            "https://api.minimax.io/anthropic",
+            "https://api.minimaxi.com/anthropic",
+        )):
+            provider = configured_provider or "minimax"
+            api_mode = "anthropic_messages"
         elif "api.kimi.com/coding" in base_lower:
             provider = "custom"
             api_mode = "anthropic_messages"
