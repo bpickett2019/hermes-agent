@@ -34,7 +34,7 @@ Quick reference for the current Hermes/OpenClaw-oriented setup on Bailey's Mac m
 
 | Tool | Status | Notes | Recommended action |
 |---|---|---|---|
-| Aider | Missing Optional | `aider` is not currently on PATH. | Defer install until needed; when approved, prefer isolated install such as `pipx install aider-chat` or a dedicated venv. |
+| Aider | Present | `aider --version` reports 0.86.2. Installed as an isolated `uv tool` using Python 3.11 after Homebrew `pipx` hit Python 3.14 inspection issues on macOS 26.2. | Use only through `safe-code-worker-aider` for scoped, review-gated coding work; no direct main pushes. |
 | Playwright CLI | Present | `playwright --version` reports 1.58.2. | Use for browser QA only; not a replacement for Hermes browser/agent-browser. |
 | Playwright skill | Present | `browser-qa-playwright` skill added in this pass. | Load for browser UAT/QA runs. |
 | GSD SDK | Present | `gsd-sdk` is installed. | Keep for Bailey's GSD workflow discipline. |
@@ -93,10 +93,14 @@ Quick reference for the current Hermes/OpenClaw-oriented setup on Bailey's Mac m
    ```bash
    ops/hermes-tool-health.sh
    ```
-2. If Aider becomes necessary, approve an isolated install explicitly:
+2. Aider is installed as an isolated user tool. Verify before use:
    ```bash
-   pipx install aider-chat
+   aider --version
    ```
-   or use a dedicated venv instead of polluting the Hermes runtime.
+   If reinstall is needed on this Mac, prefer:
+   ```bash
+   uv tool install --python /opt/homebrew/bin/python3.11 aider-chat
+   ```
+   Homebrew `pipx` currently failed here under Python 3.14 inspection, so do not assume `pipx install aider-chat` works on this host without retesting.
 3. If Langfuse becomes necessary, approve credentials and plugin enablement separately; do not store keys in the repo.
 4. Treat Trigger.dev, Temporal, E2B, Daytona, Zep, and Graphiti as optional follow-up decisions, not default installs.
